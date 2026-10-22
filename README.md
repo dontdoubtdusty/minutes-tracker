@@ -1,19 +1,43 @@
-# Minutes Tracker
+# Timecard Balancer
 
-A single-page tool for tracking how many minutes you're over or under your weekly hours target, and what to do about it on the days you have left.
+Tracks how many minutes you're over or under your weekly hours target, and tells you exactly when to clock out (or how long a lunch to take) to land on it. One file (`index.html`), no build step, no server.
 
-Open `index.html` in a browser (or enable GitHub Pages for this repo) and:
+## Using it
 
-1. Tap **Load Paycom PDF** and pick your Web Time Sheet export, or type punches in by hand.
-2. Set the week's target hours (defaults to 40).
-3. Read the **Do this** card: it tells you what time to clock out, or how long a lunch to take, to land exactly on target.
+Turn on GitHub Pages for this repo (**Settings → Pages → Deploy from a branch → `main` / root**) and open the link it gives you.
+
+### Install it as an app (Android)
+
+Open the Pages link in Chrome and tap **Install app** in the page header (or ⋮ → **Install app**). Once installed it opens full screen, works offline, and shows up in the share menu.
+
+### Loading your timesheet
+
+- **From the Paycom app:** share the Web Time Sheet PDF and pick **Timecard Balancer**. (Needs the installed app.)
+- **From a file:** tap **Load Paycom PDF**.
+- **By hand:** type punches into each day.
+
+Loading a PDF replaces the weeks you had, and you can undo it from the message that appears.
 
 ## How it works
 
-- Each week (Sun–Sat) is balanced on its own. Time is counted in exact minutes, with no rounding.
+- Each week (Sun–Sat) is balanced on its own, in exact minutes with no rounding.
 - Finished days show their minutes over or under the daily share of the target (target ÷ workdays).
-- Unfinished days are planned from your usual start time and lunch length so each one hits its daily share. The leftover minutes from earlier days are put on the day you choose, through either a later clock-out or a shorter lunch.
-- PTO hours count toward the day's total.
-- Past days with no punches are treated as even.
+- Unfinished days are planned from your usual start time and lunch so each hits its daily share, minus any PTO. The leftover minutes from earlier days go on the day you choose, through a later clock-out or a shorter lunch.
+- **PTO:** enter hours in a day's **PTO hrs** box. For example, 4 hours of PTO on an 8-hour day plans 4 hours of work (8:00, a 30-minute lunch, out at 12:30), plus any minutes you need to make up.
+- On a day you're working, a countdown shows how long until you clock out.
+- Confetti when a week lands exactly on target.
+- Only the current pay period is kept.
 
-Data stays in your browser's local storage; nothing is uploaded. Reading the PDF uses [pdf.js](https://mozilla.github.io/pdf.js/) loaded from cdnjs.
+## Files
+
+| File | What it does |
+| --- | --- |
+| `index.html` | The whole app |
+| `feedback.js` | Haptic ticks and button press feedback (shared with the Big apps) |
+| `manifest.webmanifest` | Name, colors, icons, and the share-menu entry for PDFs |
+| `sw.js` | Offline copy of the app and the PDF reader, and receives shared PDFs |
+| `icon-*.png`, `apple-touch-icon.png` | App icons |
+
+## Your data
+
+Everything is saved in your browser's `localStorage` on your device. Nothing is uploaded, and none of it is stored in this repository. Reading PDFs uses [pdf.js](https://mozilla.github.io/pdf.js/), loaded from cdnjs.
