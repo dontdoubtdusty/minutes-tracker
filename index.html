@@ -110,8 +110,16 @@ input.planned{border-style:dashed;border-color:var(--plan);color:var(--plan);bac
 .dfoot b{font-family:var(--mono);font-weight:500;color:var(--ink)}
 .planline{color:var(--plan);font-weight:500}
 
-details.settings{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-details.settings summary{cursor:pointer;font-weight:600}
+header{flex-direction:column;align-items:stretch}
+.htop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.gear{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;padding:0}
+.gear:hover{border-color:var(--accent)}
+#setSheet{position:fixed;inset:0;z-index:32;display:grid;place-items:end center;background:rgba(10,16,20,.45);animation:dfade .18s ease-out;
+  padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet{width:100%;max-width:520px;max-height:calc(100dvh - 32px - env(safe-area-inset-top,0px));overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px 20px;box-shadow:0 20px 50px rgba(0,0,0,.3);animation:dup .28s cubic-bezier(.16,1,.3,1)}
+.shead{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.shead h2{margin:0;font:600 24px/1.1 var(--display)}
+@media(min-width:600px){#setSheet{place-items:center}}
 .sgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
 .note{font-size:13px;color:var(--muted);margin:10px 0 0}
 .srow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -140,9 +148,12 @@ details.settings summary{cursor:pointer;font-weight:600}
 <body>
 <div class="wrap">
   <header>
-    <div>
-      <h1>Timecard Balancer</h1>
-      <div class="sub" id="periodSub">Minutes over or under, and how to land on target</div>
+    <div class="htop">
+      <div>
+        <h1>Timecard Balancer</h1>
+        <div class="sub" id="periodSub">Minutes over or under, and how to land on target</div>
+      </div>
+      <button class="gear" id="gear" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
     </div>
     <div class="hbtns">
       <button class="btn" id="installBtn" hidden>Install app</button>
@@ -150,8 +161,10 @@ details.settings summary{cursor:pointer;font-weight:600}
     </div>
   </header>
   <div id="app" style="display:flex;flex-direction:column;gap:16px"></div>
-  <details class="settings" id="settings">
-    <summary>Settings</summary>
+</div>
+<div id="setSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <div class="shead"><h2 id="setTitle">Settings</h2><button class="btn" id="setClose">Done</button></div>
     <div class="sec">Planning defaults</div>
     <div class="sgrid" style="margin-top:0">
       <div class="f"><label for="sStart">Usual start</label><input type="time" id="sStart"></div>
@@ -168,7 +181,7 @@ details.settings summary{cursor:pointer;font-weight:600}
       <button class="btn" id="newWeek">Add this week (blank)</button>
       <button class="btn danger" id="delWeek">Remove selected week</button>
     </div>
-  </details>
+  </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="dlg" hidden></div>
@@ -424,7 +437,12 @@ function openDlg(t,msg,btns){DLG=btns.map(x=>x[2]);const el=$("dlg");
   el.innerHTML=`<div class="dbox" role="alertdialog" aria-modal="true" aria-labelledby="dlgt"><h3 id="dlgt">${esc(t)}</h3><p>${esc(msg)}</p><div class="dbtns">${btns.map((x,i)=>`<button class="btn ${x[1]}" data-dlg="${i}">${esc(x[0])}</button>`).join("")}</div></div>`;
   el.hidden=false;el.querySelector("button").focus()}
 function closeDlg(){DLG=null;$("dlg").hidden=true;$("dlg").innerHTML=""}
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&DLG)closeDlg()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(DLG)closeDlg();else if(!$("setSheet").hidden)setOpen(false)});
+// Settings sheet (gear in the top corner)
+function setOpen(on){$("setSheet").hidden=!on;$("gear").setAttribute("aria-expanded",String(on));if(on)$("setClose").focus();else $("gear").focus()}
+$("gear").onclick=()=>setOpen($("setSheet").hidden);
+$("setClose").onclick=()=>setOpen(false);
+$("setSheet").addEventListener("click",e=>{if(e.target===$("setSheet"))setOpen(false)});
 $("dlg").addEventListener("click",e=>{if(e.target===$("dlg"))closeDlg()});
 
 // =====================================================================
@@ -453,7 +471,7 @@ document.addEventListener("change",e=>{
     R();
   }
 });
-$("newWeek").onclick=()=>{const k=weekStart(today());if(!S.weeks[k])S.weeks[k]=blankWeek();S.active=k;R();toast("Added the week of "+mdy(addDays(k,1)))};
+$("newWeek").onclick=()=>{setOpen(false);const k=weekStart(today());if(!S.weeks[k])S.weeks[k]=blankWeek();S.active=k;R();toast("Added the week of "+mdy(addDays(k,1)))};
 $("delWeek").onclick=()=>{
   const k=S.active,w=S.weeks[k];
   openDlg(`Remove the week of ${mdy(addDays(k,1))}?`,"Its punches and target are cleared from this device.",[
