@@ -71,10 +71,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,label.btn:focus-wi
 .stat .v{font-family:var(--mono);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
 .stat .k{font-size:12px;color:var(--muted)}
 
-.todo{border-radius:14px;padding:16px 18px;background:var(--plan-soft);border:1px solid color-mix(in srgb,var(--plan) 35%,transparent);display:grid;gap:10px}
+.todo{border-radius:16px;padding:20px;background:var(--plan-soft);border:1px solid color-mix(in srgb,var(--plan) 35%,transparent);display:grid;gap:10px}
 .todo.done{background:var(--even-soft);border-color:color-mix(in srgb,var(--even) 35%,transparent)}
-.todo h2{font-family:var(--display);font-weight:600;font-size:24px;line-height:1.1;margin:0;text-wrap:balance}
-.todo h2 b{font-family:var(--mono);font-weight:600;font-size:21px}
+.ttop{display:flex;justify-content:space-between;gap:8px}
+.when{font-size:16px;font-weight:600;color:var(--plan);margin-bottom:-6px}
+.todo.done .when{color:var(--even)}
+.todo .act{font-family:var(--display);font-weight:700;font-size:40px;line-height:1.02;margin:0;text-wrap:balance;letter-spacing:-.005em}
+.todo .act b{font-family:var(--mono);font-weight:600;font-size:.86em;white-space:nowrap}
+@media (max-width:420px){.todo .act{font-size:34px}}
 .todo p{margin:0;font-size:14px}
 .todo .alt{color:var(--muted)}
 .cd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;background:var(--surface);border-radius:10px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--plan) 25%,transparent)}
@@ -349,35 +353,36 @@ function countdown(c){
   return `<div class="cd late"><b>${fmtDur(-left)}</b><span>past your ${fmt12(t.plan.out)} clock-out</span></div>`;
 }
 
-function vTodo(c){
-  const W=c.W;
-  if(!c.open.length)return `<section class="todo done"><h2>${c.finalDiff===0?"Landed exactly on target.":`Finished ${Math.abs(c.finalDiff)} min ${c.finalDiff<0?"short":"over"}.`}</h2><p>${fmtHM(c.projected)} of ${fmtHM(W.target)}.</p></section>`;
-  const a=c.adj,g=a.gap,dayWord=(a.when==="today"?"Today":FULL[parseISO(a.date).getDay()])+(a.pto?` (${+(a.pto/60).toFixed(2)}h PTO)`:"");
+function vTodo(c,ws){
+  const W=c.W,top=`<div class="ttop"><span class="label">Do this</span><span class="label">Week of ${mdy(addDays(ws,1))}</span></div>`;
+  if(!c.open.length)return `<section class="todo done">${top}<h2 class="act">${c.finalDiff===0?"Landed exactly on target.":`Finished ${Math.abs(c.finalDiff)} min ${c.finalDiff<0?"short":"over"}.`}</h2><p>${fmtHM(c.projected)} of ${fmtHM(W.target)}. Nothing left to do this week.</p></section>`;
+  const a=c.adj,g=a.gap,when=(a.when==="today"?"Today":FULL[parseISO(a.date).getDay()]+" "+mdy(a.date))+(a.pto?` · ${+(a.pto/60).toFixed(2)}h PTO`:"");
   let head,alt="",warn="";
   if(a.method==="lunch"){
-    head=`${dayWord}: take a <b>${a.plan.lunch}-min</b> lunch`;alt=`Then clock out at ${fmt12(a.plan.out)}.`;
+    head=`Take a <b>${a.plan.lunch}-min</b> lunch`;alt=`Then clock out at ${fmt12(a.plan.out)}.`;
     if(a.plan.lunch<S.set.lunch)warn=`${S.set.lunch-a.plan.lunch} min shorter than your usual ${S.set.lunch}-min lunch.`;
   }else{
-    head=`${dayWord}: clock out at <b>${fmt12(a.plan.out)}</b>`;
+    head=`Clock out at <b>${fmt12(a.plan.out)}</b>`;
     if(!a.lunchTaken&&a.altLunch>=0&&g!==0)alt=`Or keep the ${fmt12(a.plan.out-g)} clock-out and take a ${a.altLunch}-min lunch instead.`;
   }
   const dayLen=c.daily-a.pto;
   const why=g===0?`You're even, so a normal ${dayLen%60?fmtHM(dayLen):dayLen/60+"-hour"} day finishes the week.`
     :`That ${g>0?"adds":"drops"} ${Math.abs(g)} min to cover ${g>0?"the shortfall":"the extra"} from earlier days.`;
-  const others=c.open.filter(r=>r!==a).map(r=>`${r.when==="today"?"Today":DAYN[parseISO(r.date).getDay()]} ${fmt12(r.plan.out)}`);
   const lab=r=>r.when==="today"?"Today":DAYN[parseISO(r.date).getDay()];
-  return `<section class="todo"><div class="label">Do this</div><h2>${head}</h2>
+  const others=c.open.filter(r=>r!==a).map(r=>`${lab(r)} ${fmt12(r.plan.out)}`);
+  return `<section class="todo">${top}
+    <div class="when">${when}</div>
+    <h2 class="act">${head}</h2>
     <p>${why} ${alt?`<span class="alt">${alt}</span>`:""}</p>
     ${warn?`<p class="warn">${warn}</p>`:""}
     ${countdown(c)}
-    ${others.length?`<p class="alt">Other open days, planned out at: ${others.join(" · ")}</p>`:""}
     <div class="ctrls">
-      ${c.open.length>1?`<span>Make it up on</span><span class="seg">${c.open.map(r=>`<button class="${r===a?"on":""}" data-adj="${r.date}" aria-pressed="${r===a}">${lab(r)}</button>`).join("")}</span>`:""}
+      ${c.open.length>1?`<span>Make it up on</span><span class="seg">${c.open.map(r=>`<button class="${r===a?"on":""}" data-w="${ws}" data-adj="${r.date}" aria-pressed="${r===a}">${lab(r)}</button>`).join("")}</span>`:""}
       <span>by</span><span class="seg">
-        <button class="${a.method==="out"?"on":""}" data-m="out" aria-pressed="${a.method==="out"}">Clock-out</button>
-        <button class="${a.method==="lunch"?"on":""}" data-m="lunch" aria-pressed="${a.method==="lunch"}" ${a.lunchTaken?"disabled title=\"Lunch already punched\"":""}>Lunch</button></span>
+        <button class="${a.method==="out"?"on":""}" data-w="${ws}" data-m="out" aria-pressed="${a.method==="out"}">Clock-out</button>
+        <button class="${a.method==="lunch"?"on":""}" data-w="${ws}" data-m="lunch" aria-pressed="${a.method==="lunch"}" ${a.lunchTaken?"disabled title=\"Lunch already punched\"":""}>Lunch</button></span>
     </div>
-    <p class="sub" style="margin:0">Week projects to ${fmtHM(c.projected)} (${signed(c.finalDiff)} min).</p></section>`;
+    <p class="sub" style="margin:0">${others.length?`Other open days, planned out at ${others.join(" · ")}. `:""}Week projects to ${fmtHM(c.projected)} (${signed(c.finalDiff)} min).</p></section>`;
 }
 
 function vDay(r){
@@ -401,8 +406,9 @@ function vDay(r){
 
 function R(){
   applyTheme();ensureActive();
-  const c=compute(S.active);
-  patch($("app"),vTabs()+vBalance(c)+vTodo(c)+`<section class="days">${c.rows.map(vDay).join("")}</section>`);
+  // "Do this" always follows the week you're in now, whichever week is open below it
+  const cw=S.weeks[weekStart(today())]?weekStart(today()):S.active,cc=compute(cw),c=cw===S.active?cc:compute(S.active);
+  patch($("app"),vTodo(cc,cw)+vTabs()+vBalance(c)+`<section class="days">${c.rows.map(vDay).join("")}</section>`);
   const ks=weekKeys();
   $("periodSub").textContent=`Pay period ${mdy(ks[0])} – ${mdy(addDays(ks[ks.length-1],6))}`;
   patch($("themeSeg"),[["system","Auto"],["daynight","Day/Night"],["light","Light"],["dark","Dark"]].map(([v,l])=>`<button class="${S.set.theme===v?"on":""}" data-theme-v="${v}">${l}</button>`).join(""));
@@ -439,7 +445,10 @@ function openDlg(t,msg,btns){DLG=btns.map(x=>x[2]);const el=$("dlg");
 function closeDlg(){DLG=null;$("dlg").hidden=true;$("dlg").innerHTML=""}
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(DLG)closeDlg();else if(!$("setSheet").hidden)setOpen(false)});
 // Settings sheet (gear in the top corner)
-function setOpen(on){$("setSheet").hidden=!on;$("gear").setAttribute("aria-expanded",String(on));if(on)$("setClose").focus();else $("gear").focus()}
+// The phone's Back gesture closes it too: opening adds a history step, closing removes it
+function setOpen(on,fromBack){if(on===!$("setSheet").hidden)return;$("setSheet").hidden=!on;$("gear").setAttribute("aria-expanded",String(on));
+  if(on){try{history.pushState({sheet:1},"")}catch(_){}$("setClose").focus()}else{if(!fromBack&&history.state&&history.state.sheet)history.back();$("gear").focus()}}
+addEventListener("popstate",()=>{if(!$("setSheet").hidden)setOpen(false,true)});
 $("gear").onclick=()=>setOpen($("setSheet").hidden);
 $("setClose").onclick=()=>setOpen(false);
 $("setSheet").addEventListener("click",e=>{if(e.target===$("setSheet"))setOpen(false)});
@@ -453,8 +462,8 @@ document.addEventListener("click",e=>{
   if(t.dataset.dlg!=null){const f=DLG&&DLG[+t.dataset.dlg];closeDlg();f&&f();return}
   if(t.dataset.undo){const u=UNDO;UNDO=null;$("toast").classList.remove("on");u&&u();return}
   if(t.dataset.wk)S.active=t.dataset.wk;
-  else if(t.dataset.adj)S.weeks[S.active].adjust=t.dataset.adj;
-  else if(t.dataset.m&&!t.disabled)S.weeks[S.active].method=t.dataset.m;
+  else if(t.dataset.adj)S.weeks[t.dataset.w||S.active].adjust=t.dataset.adj;
+  else if(t.dataset.m&&!t.disabled)S.weeks[t.dataset.w||S.active].method=t.dataset.m;
   else if(t.dataset.themeV)S.set.theme=t.dataset.themeV;
   R();
 });
