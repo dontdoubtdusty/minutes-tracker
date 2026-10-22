@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Timecard Balancer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column — balance up top, the one instruction that matters, then a day-by-day punch strip. */
+:root{
+  --bg:#eef1f3; --surface:#ffffff; --ink:#18232b; --muted:#5d6b75; --line:#d5dce1;
+  --accent:#0d5c73; --accent-soft:#dcecf1;
+  --under:#b23a2a; --under-soft:#f8e3df; --over:#2a5fb2; --over-soft:#e0e9f8; --even:#2f7d4f; --even-soft:#e0f1e6;
+  --plan:#8a6a12; --plan-soft:#f6eed6;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11181d; --surface:#19232a; --ink:#e4eaee; --muted:#93a2ad; --line:#2c3a43;
+  --accent:#6cc0d8; --accent-soft:#16343e;
+  --under:#f08a78; --under-soft:#3a201c; --over:#8db3f2; --over-soft:#1c2a40; --even:#7fd09e; --even-soft:#17301f;
+  --plan:#e3c46e; --plan-soft:#33290f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11181d; --surface:#19232a; --ink:#e4eaee; --muted:#93a2ad; --line:#2c3a43;
+  --accent:#6cc0d8; --accent-soft:#16343e;
+  --under:#f08a78; --under-soft:#3a201c; --over:#8db3f2; --over-soft:#1c2a40; --even:#7fd09e; --even-soft:#17301f;
+  --plan:#e3c46e; --plan-soft:#33290f; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:700;font-size:30px;line-height:1;margin:0;letter-spacing:.01em;text-wrap:balance}
+.sub{color:var(--muted);font-size:13px;margin-top:4px}
+.btn{font:inherit;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:8px;padding:8px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+button:focus-visible,input:focus-visible,select:focus-visible,label.btn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.tab{font:inherit;font-size:14px;font-weight:600;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+.balance{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:14px}
+.bal-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.big{font-family:var(--display);font-weight:700;font-size:56px;line-height:.95;font-variant-numeric:tabular-nums}
+.big small{font-size:22px;font-weight:600;margin-left:4px}
+.under{color:var(--under)} .over{color:var(--over)} .even{color:var(--even)}
+.target{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.target input{width:68px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.stat .v{font-family:var(--mono);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
+.stat .k{font-size:12px;color:var(--muted)}
+
+.todo{border-radius:14px;padding:16px 18px;background:var(--plan-soft);border:1px solid color-mix(in srgb,var(--plan) 35%,transparent);display:grid;gap:10px}
+.todo.done{background:var(--even-soft);border-color:color-mix(in srgb,var(--even) 35%,transparent)}
+.todo h2{font-family:var(--display);font-weight:600;font-size:24px;line-height:1.1;margin:0;text-wrap:balance}
+.todo h2 b{font-family:var(--mono);font-weight:600;font-size:21px}
+.todo p{margin:0;font-size:14px}
+.todo .alt{color:var(--muted)}
+.ctrls{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:13px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;font-size:13px;font-weight:600;border:0;background:transparent;color:var(--muted);padding:6px 10px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.warn{color:var(--under);font-size:13px;font-weight:500}
+
+.days{display:grid;gap:10px}
+.day{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:10px}
+.day.today{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.dhead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dname{font-family:var(--display);font-weight:600;font-size:20px;line-height:1}
+.dname span{font-family:var(--body);font-weight:500;font-size:13px;color:var(--muted);margin-left:6px}
+.chips{display:flex;gap:6px;align-items:center}
+.chip{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.chip.state{font-family:var(--body);text-transform:uppercase;letter-spacing:.06em;font-size:11px;background:var(--accent-soft);color:var(--accent)}
+.chip.state.plan{background:var(--plan-soft);color:var(--plan)}
+.chip.state.miss{background:var(--under-soft);color:var(--under)}
+.chip.under{background:var(--under-soft)} .chip.over{background:var(--over-soft)} .chip.even{background:var(--even-soft)}
+.punches{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,.8fr);gap:6px}
+.f{display:grid;gap:3px;min-width:0}
+.f label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 4px;width:100%;min-width:0}
+input[type=time]::-webkit-calendar-picker-indicator{display:none}
+input.planned{border-style:dashed;border-color:var(--plan);color:var(--plan);background:var(--plan-soft)}
+.dfoot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.dfoot b{font-family:var(--mono);font-weight:500;color:var(--ink)}
+.planline{color:var(--plan);font-weight:500}
+
+details.settings{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+details.settings summary{cursor:pointer;font-weight:600}
+.sgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.note{font-size:13px;color:var(--muted);margin:10px 0 0}
+.toast{font-size:13px;padding:8px 12px;border-radius:8px;background:var(--accent-soft);color:var(--accent)}
+.toast.err{background:var(--under-soft);color:var(--under)}
+@media (max-width:420px){.punches{grid-template-columns:repeat(2,minmax(0,1fr))}.big{font-size:48px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Timecard Balancer</h1>
+      <div class="sub" id="periodSub">Minutes over or under, and how to land on target</div>
+    </div>
+    <label class="btn" for="pdfIn">Load Paycom PDF<input type="file" id="pdfIn" accept="application/pdf,.pdf" hidden></label>
+  </header>
+  <div id="toast" hidden></div>
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <section class="balance" id="balance"></section>
+  <section class="todo" id="todo"></section>
+  <section class="days" id="days"></section>
+  <details class="settings">
+    <summary>Planning defaults</summary>
+    <div class="sgrid">
+      <div class="f"><label for="sStart">Usual start</label><input type="time" id="sStart"></div>
+      <div class="f"><label for="sLunch">Lunch (min)</label><input type="number" id="sLunch" min="0" step="1"></div>
+      <div class="f"><label for="sDays">Workdays</label><input type="number" id="sDays" min="1" max="5" step="1"></div>
+    </div>
+    <p class="note">Days you haven't finished are planned from these. Each open day is planned to hit its share of the weekly target, then the leftover minutes from earlier days are made up on the day you pick. Dashed fields are planned, not punched.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn" id="newWeek">Add this week (blank)</button>
+      <button class="btn" id="delWeek">Remove selected week</button>
+    </div>
+  </details>
+</div>
+
+<script>
+const DAYN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const FULL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const KEY="timecard-balancer-v1";
+const SEED={settings:{start:"08:00",lunch:30,days:5},active:null,weeks:{}};
+
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S||!S.weeks)S=JSON.parse(JSON.stringify(SEED));
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+
+/* ---------- date + time helpers ---------- */
+const pad=n=>String(n).padStart(2,"0");
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parseISO=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+const addDays=(s,n)=>{const d=parseISO(s);d.setDate(d.getDate()+n);return iso(d)};
+const weekStart=s=>{const d=parseISO(s);d.setDate(d.getDate()-d.getDay());return iso(d)};
+const TODAY=iso(new Date());
+const toMin=t=>{if(!t)return null;const[h,m]=t.split(":").map(Number);return h*60+m};
+const toTime=m=>`${pad(Math.floor(m/60)%24)}:${pad(m%60)}`;
+const fmt12=m=>{m=((m%1440)+1440)%1440;let h=Math.floor(m/60),mm=m%60,ap=h>=12?"PM":"AM";h=h%12||12;return `${h}:${pad(mm)} ${ap}`};
+const fmtHM=m=>{const s=m<0?"−":"";m=Math.abs(Math.round(m));return `${s}${Math.floor(m/60)}h ${pad(m%60)}m`};
+const signed=n=>n>0?`+${n}`:n<0?`−${Math.abs(n)}`:"±0";
+const cls=n=>n<0?"under":n>0?"over":"even";
+const mdy=s=>{const d=parseISO(s);return `${d.getMonth()+1}/${d.getDate()}`};
+
+/* ---------- core math ---------- */
+function workdays(ws){const out=[];for(let i=1;i<=S.settings.days;i++)out.push(addDays(ws,i));return out}
+function pairsMinutes(ts){let tot=0,open=false;const v=ts.filter(x=>x!=null);for(let i=0;i<v.length;i+=2){if(v[i+1]==null){open=true;break}tot+=v[i+1]-v[i]}return{tot,open,odd:v.length%2===1}}
+
+function compute(ws){
+  const W=S.weeks[ws], st=S.settings, n=st.days;
+  const daily=Math.round(W.target/n);
+  const rows=workdays(ws).map(date=>{
+    const D=W.days[date]||(W.days[date]={in:null,lout:null,lin:null,out:null,pto:0});
+    const p={in:toMin(D.in),lout:toMin(D.lout),lin:toMin(D.lin),out:toMin(D.out)};
+    const pto=D.pto||0, when=date<TODAY?"past":date===TODAY?"today":"future";
+    const any=[p.in,p.lout,p.lin,p.out].some(x=>x!=null);
+    const r={date,D,p,pto,when,daily};
+    if(when==="past"&&!any&&!pto){
+      r.worked=daily; r.fixed=true; r.blank=true; r.state="blank";
+    }else if(when==="past"||p.out!=null||(when!=="past"&&!any&&daily-pto<=0)){
+      const pm=pairsMinutes([p.in,p.lout,p.lin,p.out]);
+      r.worked=pm.tot; r.fixed=true; r.missing=when==="past"&&pm.odd; r.state=r.missing?"miss":"done";
+    }else{
+      // open day: plan the missing punches
+      const pin=p.in??toMin(st.start);
+      let lunch=(p.lout!=null&&p.lin!=null)?p.lin-p.lout:st.lunch;
+      r.lunchTaken=p.lin!=null; r.lunchStarted=p.lout!=null;
+      r.plan={in:pin,lunch,lout:p.lout??null,lin:p.lin??(p.lout!=null?p.lout+lunch:null)};
+      r.plan.out=pin+lunch+Math.max(0,daily-pto);
+      r.worked=r.plan.out-pin-lunch; r.fixed=false; r.state=when==="today"?"today":"plan";
+    }
+    r.total=r.worked+pto; r.diff=r.total-daily;
+    return r;
+  });
+  const done=rows.filter(r=>r.fixed);
+  const banked=done.reduce((a,r)=>a+r.diff,0);
+  const logged=rows.reduce((a,r)=>a+(r.blank?0:r.fixed?r.total:pairsMinutes([r.p.in,r.p.lout,r.p.lin,r.p.out]).tot+r.pto),0);
+  const open=rows.filter(r=>!r.fixed);
+  let projected=rows.reduce((a,r)=>a+r.total,0), gap=W.target-projected, adj=null;
+  if(open.length){
+    adj=open.find(r=>r.date===W.adjust)||open[open.length-1];
+    const method=(W.method==="lunch"&&!adj.lunchTaken)?"lunch":"out";
+    adj.method=method; adj.gap=gap;
+    adj.altOut=adj.plan.out+gap;
+    adj.altLunch=adj.plan.lunch-gap;
+    if(method==="lunch"){
+      let nl=adj.plan.lunch-gap, extra=0;
+      if(nl<0){extra=-nl;nl=0}
+      adj.plan.lunch=nl; adj.plan.out=adj.plan.out+extra;
+      if(adj.plan.lout!=null)adj.plan.lin=adj.plan.lout+nl;
+    }else adj.plan.out+=gap;
+    adj.worked+=gap; adj.total+=gap; adj.diff+=gap; projected+=gap;
+  }
+  return{W,rows,banked,logged,projected,open,adj,daily,finalDiff:projected-W.target};
+}
+
+/* ---------- rendering ---------- */
+const $=id=>document.getElementById(id);
+function weekKeys(){return Object.keys(S.weeks).sort()}
+function ensureActive(){const k=weekKeys();if(!k.length){S.weeks[weekStart(TODAY)]={target:2400,adjust:null,method:"out",days:{}};return ensureActive()}
+  if(!S.active||!S.weeks[S.active])S.active=k.includes(weekStart(TODAY))?weekStart(TODAY):k[k.length-1]}
+
+function render(){
+  ensureActive();
+  const keys=weekKeys();
+  $("tabs").innerHTML=keys.map(k=>`<button class="tab" role="tab" aria-selected="${k===S.active}" data-wk="${k}">Week of ${mdy(addDays(k,1))}${k===weekStart(TODAY)?" · now":""}</button>`).join("");
+  const c=compute(S.active), W=c.W;
+  const fin=!c.open.length;
+  const headN=fin?c.finalDiff:c.banked;
+  $("balance").innerHTML=`
+    <div class="bal-top">
+      <div><div class="label">${fin?"Week finished":"Banked so far"}</div>
+        <div class="big ${cls(headN)}">${signed(headN)}<small>min</small></div>
+        <div class="sub">${headN<0?"under":headN>0?"over":"exactly on"} target${fin?"":` across ${c.rows.filter(r=>r.fixed).length} finished day${c.rows.filter(r=>r.fixed).length===1?"":"s"}`}</div></div>
+      <div class="target"><label for="tgt">Target</label><input id="tgt" type="number" step="0.25" min="0" value="${+(W.target/60).toFixed(2)}"> hrs</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v">${fmtHM(c.logged)}</div><div class="k">Punched + PTO</div></div>
+      <div class="stat"><div class="v">${fmtHM(Math.max(0,W.target-c.logged))}</div><div class="k">Still to go</div></div>
+      <div class="stat"><div class="v">${c.daily} min</div><div class="k">Per day (${(c.daily/60).toFixed(2)} h)</div></div>
+    </div>`;
+
+  const td=$("todo");
+  if(fin){
+    td.className="todo done";
+    td.innerHTML=`<h2>${c.finalDiff===0?"Landed exactly on target.":`Finished ${Math.abs(c.finalDiff)} min ${c.finalDiff<0?"short":"over"}.`}</h2><p>${fmtHM(c.projected)} of ${fmtHM(W.target)}.</p>`;
+  }else{
+    td.className="todo";
+    const a=c.adj, dn=FULL[parseISO(a.date).getDay()], dayWord=a.when==="today"?"Today":dn;
+    const g=a.gap, opens=c.open;
+    let head, alt="", warn="";
+    if(a.method==="lunch"){
+      head=`${dayWord}: take a <b>${a.plan.lunch}-min</b> lunch`;
+      alt=`Then clock out at ${fmt12(a.plan.out)}.`;
+      if(a.plan.lunch<S.settings.lunch)warn=`${S.settings.lunch-a.plan.lunch} min shorter than your usual ${S.settings.lunch}-min lunch.`;
+    }else{
+      head=`${dayWord}: clock out at <b>${fmt12(a.plan.out)}</b>`;
+      if(!a.lunchTaken&&a.altLunch>=0&&g!==0)alt=`Or keep the ${fmt12(a.plan.out-g)} clock-out and take a ${a.altLunch}-min lunch instead.`;
+    }
+    const why=g===0?`You're even, so a normal ${(c.daily-a.pto)/60%1?fmtHM(c.daily-a.pto):(c.daily-a.pto)/60+"-hour"} day finishes the week.`
+      :`That ${g>0?"adds":"drops"} ${Math.abs(g)} min to cover ${g>0?"the shortfall":"the extra"} from earlier days.`;
+    const others=opens.filter(r=>r!==a).map(r=>`${r.when==="today"?"Today":DAYN[parseISO(r.date).getDay()]} ${fmt12(r.plan.out)}`);
+    td.innerHTML=`<div class="label">Do this</div><h2>${head}</h2>
+      <p>${why} ${alt?`<span class="alt">${alt}</span>`:""}</p>
+      ${warn?`<p class="warn">${warn}</p>`:""}
+      ${others.length?`<p class="alt">Other open days, planned out at: ${others.join(" · ")}</p>`:""}
+      <div class="ctrls">
+        ${opens.length>1?`<span>Make it up on</span><span class="seg" id="adjSeg">${opens.map(r=>`<button data-adj="${r.date}" aria-pressed="${r===a}">${r.when==="today"?"Today":DAYN[parseISO(r.date).getDay()]}</button>`).join("")}</span>`:""}
+        <span>by</span><span class="seg" id="methSeg">
+          <button data-m="out" aria-pressed="${a.method==="out"}">Clock-out</button>
+          <button data-m="lunch" aria-pressed="${a.method==="lunch"}" ${a.lunchTaken?"disabled title='Lunch already punched'":""}>Lunch</button></span>
+      </div>
+      <p class="sub" style="margin:0">Week projects to ${fmtHM(c.projected)} (${signed(c.finalDiff)} min).</p>`;
+  }
+
+  $("days").innerHTML=c.rows.map(r=>{
+    const d=parseISO(r.date), pl=r.plan;
+    const v=(k)=>r.D[k]||"";
+    const ph=(k)=>{if(r.fixed||r.D[k])return"";if(k==="in")return toTime(pl.in);if(k==="out")return toTime(pl.out);
+      if(k==="lout"&&pl.lout!=null)return"";if(k==="lin"&&pl.lin!=null&&pl.lout!=null)return toTime(pl.lin);return""};
+    const field=(k,lab)=>{const p=ph(k);return `<div class="f"><label for="${k}-${r.date}">${lab}</label><input type="time" id="${k}-${r.date}" data-d="${r.date}" data-k="${k}" value="${v(k)||p}" class="${p&&!v(k)?"planned":""}"></div>`};
+    const stLab={done:"Done",miss:"Missing punch",today:"Today",plan:"Planned",blank:"Not entered"}[r.state];
+    const foot=r.blank?`<span>No punches entered, counted as even</span>`:r.fixed
+      ?`<span>Worked <b>${fmtHM(r.worked)}</b>${r.pto?` + PTO <b>${fmtHM(r.pto)}</b>`:""}</span><span>Lunch <b>${r.p.lout!=null&&r.p.lin!=null?r.p.lin-r.p.lout+" min":"—"}</b></span>`
+      :`<span class="planline">Plan: ${pl.lout==null?`${pl.lunch}-min lunch, `:pl.lin!=null&&!r.lunchTaken?`back by ${fmt12(pl.lin)}, `:""}out ${fmt12(pl.out)}</span><span>Worked <b>${fmtHM(r.worked)}</b>${r.pto?` + PTO <b>${fmtHM(r.pto)}</b>`:""}</span>`;
+    return `<article class="day ${r.when==="today"?"today":""}">
+      <div class="dhead"><div class="dname">${FULL[d.getDay()]}<span>${mdy(r.date)}</span></div>
+        <div class="chips"><span class="chip state ${r.state==="plan"||r.state==="today"||r.state==="blank"?"plan":r.state==="miss"?"miss":""}">${stLab}</span>
+        <span class="chip ${cls(r.diff)} ${cls(r.diff)}" title="Minutes vs. daily target">${signed(r.diff)}</span></div></div>
+      <div class="punches">${field("in","In")}${field("lout","Lunch")}${field("lin","Back")}${field("out","Out")}
+        <div class="f"><label for="pto-${r.date}">PTO h</label><input type="number" step="0.25" min="0" id="pto-${r.date}" data-d="${r.date}" data-k="pto" value="${r.pto?+(r.pto/60).toFixed(2):""}" placeholder="0"></div></div>
+      <div class="dfoot">${foot}</div></article>`;
+  }).join("");
+  $("sStart").value=S.settings.start;$("sLunch").value=S.settings.lunch;$("sDays").value=S.settings.days;
+  save();
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-wk],[data-adj],[data-m]");if(!t)return;
+  if(t.dataset.wk){S.active=t.dataset.wk}
+  else if(t.dataset.adj){S.weeks[S.active].adjust=t.dataset.adj}
+  else if(t.dataset.m&&!t.disabled){S.weeks[S.active].method=t.dataset.m}
+  render();
+});
+document.addEventListener("change",e=>{
+  const el=e.target;
+  if(el.id==="tgt"){const h=parseFloat(el.value);if(h>=0)S.weeks[S.active].target=Math.round(h*60);return render()}
+  if(el.id==="sStart"){if(el.value)S.settings.start=el.value;return render()}
+  if(el.id==="sLunch"){const n=parseInt(el.value);if(n>=0)S.settings.lunch=n;return render()}
+  if(el.id==="sDays"){const n=parseInt(el.value);if(n>=1&&n<=5)S.settings.days=n;return render()}
+  if(el.dataset.d){
+    const D=S.weeks[S.active].days[el.dataset.d];
+    if(el.dataset.k==="pto"){const h=parseFloat(el.value);D.pto=h>0?Math.round(h*60):0}
+    else{
+      // a planned value the user didn't touch shouldn't become a punch; any edit does
+      D[el.dataset.k]=el.value||null;
+    }
+    render();
+  }
+});
+$("newWeek").onclick=()=>{const k=weekStart(TODAY);if(!S.weeks[k])S.weeks[k]={target:2400,adjust:null,method:"out",days:{}};S.active=k;render()};
+$("delWeek").onclick=e=>{
+  const b=e.currentTarget;
+  if(b.dataset.confirm){delete S.weeks[S.active];S.active=null;b.textContent="Remove selected week";delete b.dataset.confirm;render()}
+  else{b.dataset.confirm="1";b.textContent="Tap again to remove";setTimeout(()=>{if(b.dataset.confirm){delete b.dataset.confirm;b.textContent="Remove selected week"}},3000)}
+};
+
+/* ---------- Paycom PDF import ---------- */
+function toast(msg,err){const t=$("toast");t.className="toast"+(err?" err":"");t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,6000)}
+function loadPdfJs(){return new Promise((res,rej)=>{if(window.pdfjsLib)return res(window.pdfjsLib);
+  const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+  s.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";res(pdfjsLib)};
+  s.onerror=()=>rej(new Error("The PDF reader didn't load. Check your connection and try again."));document.head.appendChild(s)})}
+function to24(t){if(t==="??")return null;const m=t.match(/(\d{1,2}):(\d{2})\s*([AP])M/i);let h=+m[1]%12;if(m[3].toUpperCase()==="P")h+=12;return `${pad(h)}:${m[2]}`}
+function parsePaycom(text){
+  text=text.replace(/\s+/g," ");
+  const pp=text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const sM=pp?+pp[1]:1,sY=pp?+pp[3]:new Date().getFullYear(),eY=pp?+pp[6]:sY;
+  const re=/\b(Sun|Mon|Tue|Wed|Thu|Fri|Sat) (\d{1,2})\/(\d{1,2})\b/g;const hits=[];let m;
+  while((m=re.exec(text)))hits.push({i:m.index,end:re.lastIndex,mo:+m[2],da:+m[3]});
+  const days=[];
+  hits.forEach((h,k)=>{
+    let chunk=text.slice(h.end,k+1<hits.length?hits[k+1].i:undefined);
+    const cut=chunk.indexOf("Weekly Totals");if(cut>=0)chunk=chunk.slice(0,cut);
+    const y=h.mo<sM?eY:sY, date=`${y}-${pad(h.mo)}-${pad(h.da)}`;
+    const times=(chunk.match(/\d{1,2}:\d{2}\s*[AP]M|\?\?/gi)||[]).map(to24);
+    let pto=0;const lr=/\[[A-Z]+\][^\[\d]*?(\d+\.\d{2})/g;let q;while((q=lr.exec(chunk)))pto+=Math.round(parseFloat(q[1])*60);
+    days.push({date,in:times[0]??null,lout:times[1]??null,lin:times[2]??null,out:times[3]??null,pto});
+  });
+  return days;
+}
+$("pdfIn").addEventListener("change",async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{
+    toast("Reading "+f.name+"…");
+    const lib=await loadPdfJs();
+    const doc=await lib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;
+    let text="";for(let i=1;i<=doc.numPages;i++){const pg=await doc.getPage(i);const c=await pg.getTextContent();text+=" "+c.items.map(x=>x.str).join(" ")}
+    const days=parsePaycom(text).filter(d=>{const g=parseISO(d.date).getDay();return g>0&&g<6});
+    if(!days.length)throw new Error("Couldn't find any timesheet rows in that PDF. It should be a Paycom Web Time Sheet export.");
+    days.forEach(d=>{const ws=weekStart(d.date);const W=S.weeks[ws]||(S.weeks[ws]={target:2400,adjust:null,method:"out",days:{}});
+      W.days[d.date]={in:d.in,lout:d.lout,lin:d.lin,out:d.out,pto:d.pto}});
+    S.active=null;render();
+    toast(`Loaded ${days.length} weekdays, ${mdy(days[0].date)} to ${mdy(days[days.length-1].date)}.`);
+  }catch(err){toast(err.message||"That PDF couldn't be read.",true)}
+});
+
+render();
+</script>
+
+</body>
+</html>
