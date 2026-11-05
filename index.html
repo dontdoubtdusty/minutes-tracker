@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>Timecard Balancer v0.03</title>
+<title>Timecard Balancer v0.04</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -46,6 +46,9 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
 h1{font-family:var(--display);font-weight:700;font-size:30px;line-height:1;margin:0;letter-spacing:.01em;text-wrap:balance}
 .ver{font-family:var(--mono);font-weight:500;font-size:12px;letter-spacing:0;color:var(--muted);margin-left:4px}
 .sub{color:var(--muted);font-size:13px;margin-top:4px}
+.hol{font:inherit;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:2px 8px;cursor:pointer}
+.hol.on{background:var(--plan-soft);border-color:var(--plan);color:var(--plan)}
+.hol:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .dec{font-family:var(--mono);font-size:12px}
 .hbtns{display:flex;gap:8px;flex-wrap:wrap}
 .btn,button.dl{font:inherit;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
@@ -156,7 +159,7 @@ header{flex-direction:column;align-items:stretch}
   <header>
     <div class="htop">
       <div>
-        <h1>Timecard Balancer <small class="ver">v0.03</small></h1>
+        <h1>Timecard Balancer <small class="ver">v0.04</small></h1>
         <div class="sub" id="periodSub">Minutes over or under, and how to land on target</div>
       </div>
       <button class="gear" id="gear" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -395,13 +398,14 @@ function vDay(r){
   const field=(k,lab)=>{const p=ph(k);return `<div class="f"><label for="${k}-${r.date}">${lab}</label><input type="time" id="${k}-${r.date}" data-d="${r.date}" data-k="${k}" value="${v(k)||p}" class="${p&&!v(k)?"planned":""}"></div>`};
   const stLab={done:"Done",miss:"Missing punch",today:"Today",plan:"Planned",blank:"Not entered"}[r.state];
   const stCls=r.state==="plan"||r.state==="today"||r.state==="blank"?"plan":r.state==="miss"?"miss":"";
+  const hol=r.pto===r.daily&&r.daily>0;   // a full day of PTO reads as a holiday
   const pto=r.pto?` + PTO <b>${fmtHM(r.pto)}</b>`:"";
   const foot=r.blank?`<span>No punches entered, counted as even</span>`
     :r.fixed?`<span>Worked <b>${fmtHM(r.worked)}</b> <span class="dec">${hrs(r.worked)} h</span>${pto}</span><span>Lunch <b>${r.p.lout!=null&&r.p.lin!=null?r.p.lin-r.p.lout+" min":"—"}</b></span>`
     :`<span class="planline">Plan: ${pl.lout==null?`${pl.lunch}-min lunch, `:pl.lin!=null&&!r.lunchTaken?`back by ${fmt12(pl.lin)}, `:""}out ${fmt12(pl.out)}${r.pto?` (${+(r.pto/60).toFixed(2)}h PTO covers the rest)`:""}</span><span>Worked <b>${fmtHM(r.worked)}</b> <span class="dec">${hrs(r.worked)} h</span>${pto}</span>`;
   return `<article class="day ${r.when==="today"?"today":""}" data-day="${r.date}">
     <div class="dhead"><div class="dname">${FULL[d.getDay()]}<span>${mdy(r.date)}</span></div>
-      <div class="chips"><span class="chip state ${stCls}">${stLab}</span><span class="chip ${cls(r.diff)}" title="Minutes vs. daily target">${signed(r.diff)}</span></div></div>
+      <div class="chips"><button class="hol ${hol?"on":""}" data-hol="${r.date}" aria-pressed="${hol}" title="Count this day as a paid holiday">Holiday</button><span class="chip state ${stCls}">${stLab}</span><span class="chip ${cls(r.diff)}" title="Minutes vs. daily target">${signed(r.diff)}</span></div></div>
     <div class="punches">${field("in","In")}${field("lout","Lunch")}${field("lin","Back")}${field("out","Out")}
       <div class="f"><label for="pto-${r.date}">PTO hrs</label><input type="number" step="0.25" min="0" inputmode="decimal" id="pto-${r.date}" data-d="${r.date}" data-k="pto" value="${r.pto?+(r.pto/60).toFixed(2):""}" placeholder="0"></div></div>
     <div class="dfoot">${foot}</div></article>`;
@@ -461,9 +465,12 @@ $("dlg").addEventListener("click",e=>{if(e.target===$("dlg"))closeDlg()});
 // 7. EVENTS
 // =====================================================================
 document.addEventListener("click",e=>{
-  const t=e.target.closest("[data-wk],[data-adj],[data-m],[data-theme-v],[data-undo],[data-dlg]");if(!t)return;
+  const t=e.target.closest("[data-wk],[data-adj],[data-m],[data-theme-v],[data-undo],[data-dlg],[data-hol]");if(!t)return;
   if(t.dataset.dlg!=null){const f=DLG&&DLG[+t.dataset.dlg];closeDlg();f&&f();return}
   if(t.dataset.undo){const u=UNDO;UNDO=null;$("toast").classList.remove("on");u&&u();return}
+  if(t.dataset.hol){   // Holiday: toggle a full daily share of PTO on that day
+    const W=S.weeks[S.active],daily=Math.round(W.target/S.set.days),D=W.days[t.dataset.hol];
+    D.pto=D.pto===daily?0:daily;R();return}
   if(t.dataset.wk)S.active=t.dataset.wk;
   else if(t.dataset.adj)S.weeks[t.dataset.w||S.active].adjust=t.dataset.adj;
   else if(t.dataset.m&&!t.disabled)S.weeks[t.dataset.w||S.active].method=t.dataset.m;
