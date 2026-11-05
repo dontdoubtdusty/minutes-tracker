@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>Timecard Balancer v0.04</title>
+<title>Timecard Balancer v0.05</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -159,7 +159,7 @@ header{flex-direction:column;align-items:stretch}
   <header>
     <div class="htop">
       <div>
-        <h1>Timecard Balancer <small class="ver">v0.04</small></h1>
+        <h1>Timecard Balancer <small class="ver">v0.05</small></h1>
         <div class="sub" id="periodSub">Minutes over or under, and how to land on target</div>
       </div>
       <button class="gear" id="gear" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -518,7 +518,9 @@ function parsePaycom(text){
   while((m=re.exec(text)))hits.push({i:m.index,end:re.lastIndex,mo:+m[2],da:+m[3]});
   const days=hits.map((h,k)=>{
     let chunk=text.slice(h.end,k+1<hits.length?hits[k+1].i:undefined);
-    const cut=chunk.indexOf("Weekly Totals");if(cut>=0)chunk=chunk.slice(0,cut);
+    // The Saturday row carries the weekly total Paycom prints, kept here for the import check
+    let wtotal=null;const cut=chunk.indexOf("Weekly Totals");
+    if(cut>=0){const wm=chunk.slice(cut).match(/Weekly Totals\s+(\d+\.\d{2})/);wtotal=wm?parseFloat(wm[1]):null;chunk=chunk.slice(0,cut)}
     const y=h.mo<sM?eY:sY,date=`${y}-${pad(h.mo)}-${pad(h.da)}`;
     const times=(chunk.match(/\d{1,2}:\d{2}\s*[AP]M|\?\?/gi)||[]).map(to24);
     // Fixed holidays list only dollars, never hours, so they are flagged here and sized by the importer
@@ -527,7 +529,7 @@ function parsePaycom(text){
     let pto=0;const lr=/\[(?!HLY\])[A-Z]+\][^\[\d$]*?(\d+\.\d{2})/g;let q;while((q=lr.exec(chunk)))pto+=Math.round(parseFloat(q[1])*60);
     // The PDF text loses column positions, so a finished day with exactly two times is one In and one Out
     const inOut=times.length===2&&times[1]!=null&&date<today();
-    return{date,in:times[0]??null,lout:inOut?null:times[1]??null,lin:times[2]??null,out:inOut?times[1]:times[3]??null,pto,holiday};
+    return{date,in:times[0]??null,lout:inOut?null:times[1]??null,lin:times[2]??null,out:inOut?times[1]:times[3]??null,pto,holiday,wtotal};
   });
   const start=pp?`${sY}-${pad(+pp[1])}-${pad(+pp[2])}`:null;
   return{start,days};
@@ -541,6 +543,13 @@ async function importPdf(buf,name){
     const {start,days:all}=parsePaycom(text);
     const days=all.filter(d=>{const g=parseISO(d.date).getDay();return g>0&&g<6});
     if(!days.length)throw new Error("Couldn't find any timesheet rows in that PDF. It should be a Paycom Web Time Sheet.");
+    // Compare each week with the total Paycom prints, to catch hours the day rows don't show (usually PTO)
+    const byWk={},gaps=[];
+    all.forEach(d=>{const ws=weekStart(d.date),g=byWk[ws]||(byWk[ws]={paycom:null,mins:0});
+      if(d.wtotal!=null)g.paycom=Math.round(d.wtotal*60);
+      if(!d.holiday)g.mins+=pairsMinutes([toMin(d.in),toMin(d.lout),toMin(d.lin),toMin(d.out)]).tot+d.pto});
+    Object.keys(byWk).sort().forEach(ws=>{const g=byWk[ws];if(g.paycom==null)return;const diff=g.paycom-g.mins;
+      if(Math.abs(diff)>3)gaps.push(`Week of ${mdy(addDays(ws,1))}: Paycom totals ${hrs(g.paycom)} h, but the day rows add to ${hrs(g.mins)} h (${hrs(Math.abs(diff))} h ${diff>0?"missing":"extra"}).`)});
     const before=JSON.stringify(S);
     if(start)S.period={start:weekStart(start)};
     const weeks={};
@@ -550,6 +559,7 @@ async function importPdf(buf,name){
       W.days[d.date]={in:d.in,lout:d.lout,lin:d.lin,out:d.out,pto:d.holiday?Math.round(W.target/S.set.days):d.pto}});
     S.weeks=weeks;S.active=null;prune();R();
     toast(`Loaded ${mdy(days[0].date)} – ${mdy(days[days.length-1].date)}`,()=>{S=JSON.parse(before);R()});
+    if(gaps.length)openDlg("Paycom's total doesn't match",gaps.join(" ")+" Missing hours are usually PTO that the day rows don't show. Add them to the right day.",[["Got it","primary",null]]);
   }catch(err){toast(err.message||"That PDF couldn't be read.")}
 }
 $("pdfIn").addEventListener("change",async e=>{const f=e.target.files[0];e.target.value="";if(f)importPdf(await f.arrayBuffer(),f.name)});
