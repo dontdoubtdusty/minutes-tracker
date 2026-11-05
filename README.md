@@ -18,6 +18,8 @@ Open the Pages link in Chrome and tap **Install app** in the page header (or ⋮
 
 Loading a PDF replaces the weeks you had, and you can undo it from the message that appears.
 
+A fixed holiday in the PDF counts as one full daily share of the week's target, entered as PTO (Paycom lists holidays in dollars, not hours). PTO taken on a worked day is not shown on the day rows of the PDF, so type those hours into that day's **PTO hrs** box.
+
 ## How it works
 
 - Each week (Sun–Sat) is balanced on its own, in exact minutes with no rounding.
