@@ -26,6 +26,7 @@ A fixed holiday in the PDF counts as one full daily share of the week's target, 
 - Finished days show their minutes over or under the daily share of the target (target ÷ workdays).
 - Unfinished days are planned from your usual start time and lunch so each hits its daily share, minus any PTO. The leftover minutes from earlier days go on the day you choose, through a later clock-out or a shorter lunch.
 - **PTO:** enter hours in a day's **PTO hrs** box. For example, 4 hours of PTO on an 8-hour day plans 4 hours of work (8:00, a 30-minute lunch, out at 12:30), plus any minutes you need to make up.
+- Each day's worked time also shows in decimal hours (for example 8.02 h), the way Paycom prints it, so you can compare row by row.
 - On a day you're working, a countdown shows how long until you clock out.
 - Confetti when a week lands exactly on target.
 - Only the current pay period is kept.
